@@ -1,0 +1,12 @@
+1.go安装
+环境变量:
+GOROOT：指定 Go 的安装目录，以全局执行go命令
+GOPATH：指定 Go 的工作目录，包含src（项目源码，Go Modules后可以放在任意位置）、pkg（存放依赖包和编译后的包文件，默认GOPATH/pkg/mod ， 可通过GOMODCACHE自定义）、bin（存放go install生成的可执行文件，优先GOBIN，无 GOBIN 则存GOPATH/bin）
+核心插件：
+gopls：提供代码分析、补全、定义跳转
+dlv：debug
+golint/golangci-lint：代码静态检查工具，检测代码风格、潜在错误（如未使用变量、语法不规范等）
+goimports：自动格式化代码并管理导入包
+gofmt：Go 官方代码格式化工具，统一代码风格
+gotests：自动生成单元测试代码（基于函数 / 方法生成测试框架，减少手动编写工作）
+impl：根据接口自动生成结构体的实现方法（如实现 io.Reader 接口时自动生成 Read 方法）

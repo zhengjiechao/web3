@@ -1,0 +1,64 @@
+1.基础能力建设
+值类型与引用类型陷阱：存储位置混淆
+继承与接口的模块化设计：
+安全的数学运算库实践：内置安全检查和自定义安全库，A*B=C,校验C/A是否等于B
+ERC20标准接口实现：
+经济模型实现模式：通缩，转账交易销毁2%；流动性奖励，个人理解就是钱存银行，提供交易流动性，获取手续费，风险高；持币分红，按token比例获取合约账上的ETH
+
+
+2.合约设计模式
+可升级合约架构
+Transparent Proxy（透明代理）：三个重要函数，构造函数设置实现合约地址、管理者地址；fallback函数，assembly汇编代码包裹，calldatacopy复制参数到内存，delegatecall执行函数，returndatacopy复制结果到内存，判断，返回结果；upgradeTo升级合约函数
+UUPS：三个重要函数，构造函数设置实现合约地址、管理者地址；fallback函数，同上；_setImplementation函数，internal修饰，只能由逻辑合约使用address(this).call(...)调用，因为使用delegatecall，逻辑合约执行是在代理合约的上下文中，这种调用才会有效
+区别：透明代理里代理合约负责升级逻辑，UUPS里逻辑合约负责升级逻辑，调用代理合约的_setImplementation函数进行设置
+存储槽隔离：代理合约和逻辑合约共享存储空间，代理合约指定状态变量的存储槽位，避免和逻辑合约冲突，因为存储槽位默认从0开始
+权限控制模式：多个角色组成mapping，每个角色里包含用户地址是否拥有该角色以及当前角色的admin管理角色，拥有管理角色才可以管理此角色
+Ownable 模式优化：owner数组，由操作的hash和时间构成映射
+多签钱包集成：多个私钥共同授权才能执行交易的钱包
+Multicall 模式实现：主要区分deledatecall和call的区别，delegatecall是委托调用的意思，在当前合约上下文执行，并且不改变msg.sender的值
+Gas 优化策略：将高频访问数据放在同一插槽，即封装成同一个struct
+
+
+3.专属功能开发
+动态铸造权限管理：自己是铸造者就可以设置其它铸造者设计不合理，可引入分解权限控制
+防止女巫攻击：所有者提前对msg.sender调用者+referer推荐人进行签名生成signature，调用时使用椭圆曲线还原所有者地址；using ECDSA for bytes32库函数绑定语法，是将ECDSA的函数绑定在bytes32身上
+动态税率调节：计算和个人所得税类似，起征点升序，按倒序遍历；产生的税放入税池
+资金分配路由：类似于股东分红，按照比例获得收益，剩余资金转入默认地址
+自动添加流动性：流动性是指资产能够快速、低成本地被买入或卖出
+DEX 交互安全：pair交易对，两种资产相互兑换的合约地址
+
+
+4.进阶架构
+Diamond 标准实现：钻石代理合约，实现智能合约的模块化和可升级性，将合约的功能钻石切割成多个较小的切面合约。个人理解相当于微服务拆分，突破合约大小限制，便于合约升级，提高代码复用性和可维护性。主要原理是维护一个以函数选择器为key，合约地址为value的mapping
+热更新机制：维护一个以模块名为key，模块合约地址为key的mapping
+layer2解决方案
+depositToL2：从L1存款到L2，本质是将L1资产锁定在跨链合约（如 optimismPortal），随后L2根据锁定记录mint一份L2映射资产（IOU凭证）；L1安全性高于L2，故L2接收到存款消息，可立即信任，几乎近实时
+withdrawFromL2：从L2提款到L1，本质是销毁L2映射资产，解锁跨链合约中的L1资产；L1无法信任L2，需要经过一系列的验证（争议期，通常为7天），才会最终解锁
+OptimismPortal合约：验证存款合法性、 生成跨链消息、锁定资产、处理提款最终确认；通俗理解，寄快递中的菜鸟驿站
+crossChainMessenger合约：跨链消息发送器，注意sendMessage（）函数使用的地址address(this)是通过自身地址映射出L1上地址
+跨链桥接核心：每条链部署对应合约，通过跨链消息同步状态，依赖密码学证明、多节点验证等确定消息合法性，跨链资产和原链资产资产锚定
+
+
+5.源码杂记
+核心合约
+FLOKI主合约，
+IGovernanceToken供主合约继承，提供struct Checkpoint，和getVotesAtBlock()函数
+ITaxHandler税费处理器，核心函数getTax()
+ITreasuryHandler国库处理器，转账时会扣除手续费转到国库，核心函数是beforeTransferHandler()、afterTransferHandler()两个钩子函数，转账之前、之后调用
+
+函数和变量带下划线通常表示私有的
+unchecked代码块：禁用算术运算溢出检查，将溢出的处理责任交给开发者；提高运行效率，较少gas消耗；一般用于肯定不会出现溢出的场景
+投票逻辑：_writeCheckpoint函数第一个if，非第一个投票点并且区块号相同，只会覆盖票数，不创建新的投票点；第一个投票点或者区块号不相同则会新增加投票点
+
+签名投票逻辑
+由第三方处理，委托者不用调用合约函数，节约gas费；
+abi.encode将参数进行应用二进制编码，配合keccake()使用得到hash，DOMAIN_TYPEHASH、DELEGATION_TYPEHASH都是一种标准，对于encode本身没有特殊意义；
+abi.encode对所有参数按32字节对齐编码，abi.encodePacked进行紧凑编码；
+核心原理是委托者利用私钥按照EIP-712 标准hash产生的digest进行签名得到v、r、s，将v、r、s给第三方，第三方调用合约函数，合约做相同的hash工作产生digest，配合v，r，s验证得到公钥地址
+
+getVotesAtBlock()函数获取票数使用到了二分法查找
+
+
+
+
+

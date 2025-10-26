@@ -1,0 +1,43 @@
+// node版本：
+node --version 
+npm --version
+
+// 初始化hardhat项目：
+npm init
+npm install hardhat@2.22.19 --save-dev
+npx hardhat init
+
+// 启动本地节点
+npx hardhat node
+
+// 部署到指定网络，localhost为本地，不指定网络时部署到hardhat network中，临时使用；--reset重新部署
+npx hardhat ignition deploy ./ignition/modules/Lock.js --network localhost
+
+// 安装openzeppelin合约依赖
+npm install @openzeppelin/contracts
+
+// 测试
+npx hardhat test
+npx hardhat test 指定js文件
+
+// 合约升级
+// 安装deploy插件
+npm install -D hardhat-deploy
+
+// 安装可升级合约依赖
+npm install @openzeppelin/contracts-upgradeable
+
+// 安装升级插件
+npm install -d @openzeppelin/hardhat-upgrades
+
+// 部署
+npx hardhat deploy --network 指定网络
+npx hardhat deploy --tags 指定tag --network 指定网络
+
+// 安装预言机依赖
+npm install @chainlink/contracts
+
+
+
+
+

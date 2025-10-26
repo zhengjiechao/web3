@@ -1,0 +1,23 @@
+1. 模块导入与导出
+const { ethers } = require("hardhat")
+const { upgrades } = require("hardhat")
+const { deployments } = require("hardhat")
+const fs = require("fs")
+const path = require("path")
+const { expect } = require("chai")
+注释：
+ethers：Hardhat 集成的 Ethers.js 库 的实例。Ethers.js 是一个流行的以太坊 JavaScript 库，提供了与以太坊区块链交互的各种功能
+deployments：是 Hardhat 生态中 hardhat-deploy 插件提供的模块，用于简化智能合约的部署、测试和管理流程。它提供了诸如部署合约、获取已部署合约实例、管理部署脚本等功能。
+upgrades：是 Hardhat 官方的 @openzeppelin/hardhat-upgrades 插件提供的模块，专门用于处理智能合约的可升级性（通过代理模式实现）。它提供了部署可升级合约、升级已有合约、管理代理等功能，常与 OpenZeppelin 的升级库配合使用。
+fs：Node.js 内置的fs 模块（File System，文件系统模块），并将其赋值给变量 fs，以便在代码中使用该模块提供的文件操作功能
+path：Node.js 内置的 path 模块，并将其赋值给变量 path，用于处理文件路径相关的操作
+expect：chai框架中的断言
+{}代表解构，提取目标的元素
+
+2.常见语法
+module.exports：定义当前模块对外提供的接口，匿名的函数只能有一个
+async () => {}：匿名异步函数，等同于async function () {}
+async ({ getNamedAccounts, deployments }) => {}：依赖注入参数，也可在函数中获取，但会破坏依赖注入的设计原则
+async和await：async 定义异步函数，await 等待异步操作完成，配合使用
+describe("",async() => {}：测试用例分组，配合it、beforeEach（每个it之前调用）、afterEach（每个it之后调用）
+

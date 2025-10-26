@@ -1,0 +1,279 @@
+1.安装ethclient包依赖
+go get github.com/ethereum/go-ethereum
+go get github.com/ethereum/go-ethereum/rpc
+
+
+2.安装工具，需配置npm的全局安装路径到系统的环境变量中
+solc：-g表示全局安装，不同solidity版本可能需要局部安装
+npm install -g solc
+abigen：
+go install github.com/ethereum/go-ethereum/cmd/abigen@latest
+
+
+3.常用公共函数
+初始化客户端：
+client, err := ethclient.Dial("https://sepolia.infura.io/v3/6dc022d8c7c24f3f8dd2874ea037e0ec")
+获取链ID:
+chainId, err := client.ChainID(context.Background())
+超大整数、极高精度的小数使用math/big包换算处理，数字比较大时可能还需配合setString()方法
+blockNumber := big.NewInt(9323403)
+十六进制转hash
+blockHash := common.HexToHash("0xbfbeabf4e22e340ded3428ca4c579b4d6932a1aefada403c30d02b91a15fc8f0")
+
+
+4.查询区块block、区块头header
+根据区块号查询区块头:
+header, err := client.HeaderByNumber(context.Background(), blockNumber)
+根据区块号查询区块
+block, err := client.BlockByNumber(context.Background(), blockNumber)
+根据区块hash查询指定区块交易数量
+count, err := client.TransactionCount(context.Background(), block.Hash())
+
+
+5.查询交易transaction
+循环遍历块交易信息集合，注意：交易类型不匹配会报错transaction type not supported，修改为NewLondonSigner；古老的交易仍可能报错
+for _, tx := range block.Transactions() {}
+根据块hash、索引查询交易信息
+tx, err := client.TransactionInBlock(context.Background(), blockHash, i)
+直接通过交易hash查询交易
+tx, isPending, err := client.TransactionByHash(context.Background(), txHash)
+
+
+6.查询收据receipt
+通过块hash查询收据
+receiptsByHash, err := client.BlockReceipts(context.Background(), rpc.BlockNumberOrHashWithHash(blockHash, false))
+通过块number查询收据
+receiptsByNumber, err := client.BlockReceipts(context.Background(), rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(9323403)))
+通过交易hash查询收据
+receiptsByTxHash, err := client.TransactionReceipt(context.Background(), txHash)
+
+
+7.公钥、私钥的字符串转换
+方式1：生成随机ecdsa.PrivateKey私钥对象
+privateKey, err := crypto.GenerateKey()
+方式2：将64位私钥十六进制字符串转换为ecdsa.PrivateKey私钥对象
+privateKeyEcdsa, err := crypto.HexToECDSA("08abb2559bf3a38eb8036a12f67f596018252ff14af68d5202487a6faea1a1eb")
+
+将ecdsa.PrivateKey私钥对象转换为byte数组
+privateKeyBytes := crypto.FromECDSA(privateKeyEcdsa)
+去除0x，得到64位十六进制字符串私钥
+hexutil.Encode(privateKeyBytes)[2:]
+
+通过ecdsa.PrivateKey私钥对象得到ecdsa.PublicKey公钥对象
+publicKey := privateKeyEcdsa.Public()
+publicKeyEcdsa, ok := publicKey.(*ecdsa.PublicKey)
+将ecdsa.PublicKey公钥对象转换为65个字节byte数组
+publicKeyBytes := crypto.FromECDSAPub(publicKeyEcdsa)
+去除0x04(EC前缀，hexutil.Encode()方法会默认加上0x，加上公钥默认的前缀04，总共是0x04)，得到128位十六进制字符串公钥
+hexutil.Encode(publicKeyBytes)[4:]
+
+方式一：通过ecdsa.PublicKey公钥对象进行hash（Keccak-256）运算，再截取最后 40 个字符（20 个字节）并用“0x”作为前缀得到地址
+publicAddress := crypto.PubkeyToAddress(*publicKeyEcdsa).Hex()
+方式二：原生方式，去除publicKeyBytes默认的04前缀，得到32个字节截取最后20个字节数组
+hash := sha3.NewLegacyKeccak256()
+hash.Write(publicKeyBytes[1:])
+hexutil.Encode(hash.Sum(nil)[12:])
+
+
+8.ETH转账
+读取该账户的交易随机数nonce
+nonce, err := client.PendingNonceAt(context.Background(), fromAddress)
+设置转移的ETH数量，单位为wei;参数为int64类型，范围为0~9.22*10^18,当ETH达到最大值时，则使用setString的方式赋值
+value := big.NewInt(10000000000000000)
+value, flag := new(big.Int).SetString("10000000000000000", 10)
+ETH 转账的燃气应设上限为“21000”单位
+gasLimit := uint64(21000)
+燃气价格，30Gwei，1G=10^9；SuggestGasPrice根据'x'个先前块来获得平均燃气价格，价格较低可能会导致卡链、交易超时、间接资产风险
+gasPrice := big.NewInt(30000000000)
+suggestGasPrice, err := client.SuggestGasPrice(context.Background())
+
+构建交易对象
+tx := types.NewTransaction(nonce, toAddress, value, gasLimit, gasPrice, nil)
+签名
+signTx, err := types.SignTx(tx, types.NewEIP155Signer(chainId), privateKey)
+广播到整个网络
+err = client.SendTransaction(context.Background(), signTx)
+
+
+9.代币转账（类比ETH转账，只突出不一致的地方）
+value为0，只转token
+value := big.NewInt(0)
+
+构建函数id
+transferFnSignature := []byte("transfer(address,uint256)")
+hash := sha3.NewLegacyKeccak256()
+hash.Write(transferFnSignature)
+methodId := hash.Sum(nil)[:4]
+把to地址转换为32字节数组，左边补0
+paddedToAddress := common.LeftPadBytes(toAddress.Bytes(), 32)
+token转账数量
+amount, flag := new(big.Int).SetString("100", 10)
+paddedAmount := common.LeftPadBytes(amount.Bytes(), 32)
+拼接methodId、paddedToAddresss、paddedAmount得到data
+data := append(methodId, paddedToAddress...)
+data = append(data, paddedAmount...)
+
+预估燃气上限
+gasLimit, err := client.EstimateGas(context.Background(), ethereum.CallMsg{
+	To:   &tokenAddress,
+	Data: data,
+	From: publicAddress,
+})
+
+获取交易对象
+tx := types.NewTransaction(nonce, tokenAddress, value, gasLimit, gasPrice, data)
+交易签名
+chainId, err := client.NetworkID(context.Background())
+signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainId), privateKey)
+广播交易
+err = client.SendTransaction(context.Background(), signedTx)
+
+10.查询ETH余额
+查询余额，第三个参数是blockNumber，为nil时查询最新
+balance, err := client.BalanceAt(context.Background(), address, nil)
+查询未确认余额
+pendingBalance, err := client.PendingBalanceAt(context.Background(), address)
+
+换算单位，Quo是quotient（商）的简写
+balanceFloat := new(big.Float)
+balanceFloat.SetString(balance.String())
+ethValue := new(big.Float).Quo(balanceFloat, big.NewFloat(math.Pow10(18)))
+
+
+11.查询代币余额
+solidity文件转abi文件：
+solcjs --abi IERC20Metadata.sol
+abi文件转go文件：--abi指定abi文件，--pkg生成go文件的包名，--out生成go文件的文件名
+abigen --abi=IERC20Metadata_sol_IERC20Metadata.abi --pkg=token --out=erc20.go
+
+创建token实例
+instance, err := token.NewToken(tokenAddress, client)
+调用token实例函数
+bal, err := instance.BalanceOf(&bind.CallOpts{}, address)
+
+
+12.订阅区块
+创建一个websocket客户端
+socketClient, err := ethclient.Dial("wss://sepolia.infura.io/ws/v3/6dc022d8c7c24f3f8dd2874ea037e0ec")
+创建一个通道
+headerChan := make(chan *types.Header)
+订阅区块头（订阅到的可能是待确认区块，一般通过区块号-确认区块数量阈值得到确认区块号，再通过区块号获取对应的区块信息）
+sub, err := socketClient.SubscribeNewHead(context.Background(), headerChan)
+使用for配合select监听channel
+case err := <-sub.Err():
+case header := <-headerChan:
+
+
+13.部署合约
+编译solidity合约代码为二进制字节码文件，xxx.bin
+solcjs --bin Store.sol
+编译solidity合约代码为abi 文件，xxx.abi
+solcjs --abi Store.sol
+使用 abigen 工具根据bin 文件和 abi 文件，生成 go 代码
+abigen --bin=Store_sol_Store.bin --abi=Store_sol_Store.abi --pkg=store --out=store.go
+
+方式一 使用abigen工具将solidity合约生成go代码
+获取带签名器的交易配置对象
+auth, err := bind.NewKeyedTransactorWithChainID(privateKey, chainId)
+auth.Nonce = big.NewInt(int64(nonce))
+auth.Value = big.NewInt(0)
+auth.GasPrice = gasPrice
+auth.GasLimit = uint64(300000)
+部署合约，生成的go代码中会提供DeployStore函数
+contractAddress, tx, instance, err := store.DeployStore(auth, client, "1.0")
+
+方式二 使用原生go代码
+解码字节码，contractByteCode为xxx.bin文件中的十六进制字符串
+data, err := hex.DecodeString(contractByteCode)
+创建交易
+tx := types.NewContractCreation(nonce, big.NewInt(0), 3000000, gasPrice, data)
+signTx, err := types.SignTx(tx, types.NewEIP155Signer(chainId), privateKey)
+发送交易
+err = client.SendTransaction(context.Background(), signTx)
+使用for语句循环等待获取收据，从收据中可得到合约地址receipt.ContractAddress，注意死循环应判断错误类型是否为ethereum.NotFound
+receipt, err := client.TransactionReceipt(context.Background(), signTx.Hash())
+
+方式三 hardhat部署
+略
+
+方式四 remix部署
+略
+
+
+14.加载合约
+instance, err := store.NewStore(contractAddress, client)
+
+
+15执行合约
+方式一 使用生成的 Go 合约代码
+获取合约实例
+instance, err := store.NewStore(contractAddress, client)
+获取带签名器的交易配置对象
+opt, err := bind.NewKeyedTransactorWithChainID(privateKey, chainId)
+调用合约的函数，key、value是合约函数的参数
+tx, err := instance.SetItem(opt, key, value)
+获取只读交易配置对象
+callOpt := &bind.CallOpts{Context: context.Background()}
+调用合约函数，这儿会有延迟，交易可能未确认，导致刚刚塞进去的值!=取出的值
+valueInContract, err := instance.Items(callOpt, key)
+
+方式二 仅使用 ethclient 包调用合约
+将合约的abi字符串转换为abi.ABI对象
+contractABI, err := abi.JSON(strings.NewReader("合约abi"))
+使用合约的abi.ABI对象将函数名、参数进行打包成字节切片，注意：methodName是单纯的函数名，abi.ABI对象会解析成函数选择器的形式，后进行正常创建交易-签名-发送交易
+input, err := contractABI.Pack(methodName, key, value)
+调用合约，核心是callMsg里使用abi.ABI对象函数选择器的构建
+result, err := client.CallContract(context.Background(), callMsg, nil)
+使用abi.ABI对象解析结果
+contractABI.UnpackIntoInterface(&unpacked, "items", result)
+
+方式三 不使用 abi 文件调用合约
+创建交易，核心是input里进行了函数选择器的构建；注意，手动构建函数选择器应注意各类型左补0、右补0的问题（string、[]byte右补，其他数值类型左补，核心记忆点是按顺序右补，算数值左补）
+tx := types.NewTransaction(nonce, contractAddr, big.NewInt(0), 300000, gasPrice, input)
+调用合约，核心是callMsg里进行了函数选择器的构建；关注返回值的需要调用此方法，无返回值的可直接创建交易-签名-发送交易
+result, err := client.CallContract(context.Background(), callMsg, nil)
+
+
+16.查询事件
+构建查询参数，FromBlock:、ToBlock可指定区块
+queryParam := ethereum.FilterQuery{
+	FromBlock: big.NewInt(9333167),
+	Addresses: []common.Address{contractAddr},
+}
+查询日志
+logs, err := client.FilterLogs(context.Background(), queryParam)
+遍历logs时构建根据合约event参数（须首字母大写）构成的匿名结构体
+eventLog := struct {
+	Key   [32]byte
+	Value [32]byte
+}{}
+使用abi对象解析log
+err := contractABI.UnpackIntoInterface(&eventLog, "ItemSet", vlog.Data)
+遍历主题得到主题，第0位主题是事件的函数选择器形式
+eventSignature := []byte("ItemSet(bytes32,bytes32)")
+hash := crypto.Keccak256Hash(eventSignature)
+
+
+17.订阅事件
+构建一个查询参数，应订阅事件是动态的，故不指定区块高度
+queryParam := ethereum.FilterQuery{
+	Addresses: []common.Address{contractAddress},
+}
+客户端调用获取订阅对象
+sub, err := socketClient.SubscribeFilterLogs(context.Background(), queryParam, logChan)
+使用for配合select语句读取事件内容
+case err := <-sub.Err():
+case vlog := <-logChan:
+
+
+
+
+
+
+
+
+
+
+
+
+

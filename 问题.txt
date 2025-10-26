@@ -1,0 +1,6 @@
+1.sender, err := types.Sender(types.NewLondonSigner(chainId), tx)获取sender的时候老是会报错transaction type not supported，也找不到什么原因，
+引申下，这种是常态进行特殊处理，获取跳过，还是要找到问题所在，比如api版本问题等
+
+2.infru限流问题，要加入缓存吗
+
+3.一般不会去读取整个块的交易或者收据吧

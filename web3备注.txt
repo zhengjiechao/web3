@@ -1,0 +1,24 @@
+github
+18113132975@163.com Zjc201316*
+
+discord
+18113132975@163.com Zjc201316*
+
+钱包
+Zjc201316*
+
+git
+设置代理
+git config --global http.proxy  'http://127.0.0.1:7897' 
+git config --global https.proxy 'http://127.0.0.1:7897'
+
+取消代理
+git config --global --unset http.proxy
+git config --global --unset https.proxy
+
+查看代理
+git config --global --get http.proxy
+git config --global --get https.proxy
+
+学习路线
+https://discord.com/channels/1343593402070990870/1343593402591346776

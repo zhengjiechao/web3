@@ -1,0 +1,80 @@
+1.ERC20
+文档地址：https://docs.openzeppelin.com/contracts/5.x/erc20
+github地址：https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.4.0/contracts/token/ERC20/IERC20.sol
+引包接口：import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+引包实现：import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+状态变量：
+mapping(address account => uint256) private _balances;
+mapping(address account => mapping(address spender => uint256)) private _allowances;
+uint256 private _totalSupply;
+string private _name;
+string private _symbol;
+
+函数：
+构造函数：
+constructor(string memory name_, string memory symbol_)；构造函数，指定token名称、简称
+基础查询类函数：
+function name() public view virtual returns (string memory)；获取token名称
+function symbol() public view virtual returns (string memory)；获取token简称
+function decimals() public view virtual returns (uint8)；获取精度
+function totalSupply() public view virtual returns (uint256)；获取总供应量
+function balanceOf(address account) public view virtual returns (uint256)：获取指定地址的token数量
+转账交易类函数：
+function transfer(address to, uint256 value) public virtual returns (bool)；调用者向to转账
+function allowance(address owner, address spender) public view virtual returns (uint256)；查询spender可以消费owner多少token，和调用者无关
+function approve(address spender, uint256 value) public virtual returns (bool)；调用者授权spender可以从自己账户消费多少token。注意：改变授权数量时需先设置为0，待交易确认后再设置成第二次的目标值
+function transferFrom(address from, address to, uint256 value) public virtual returns (bool)；请求发起者减去from对自己的授权金额，from将这部分转账给to
+额外重要internal函数：
+function _mint(address account, uint256 value) internal；制造一定数量token到指定账户
+function _burn(address account, uint256 value) internal；从指定账户销毁一定数量token
+事件：
+event Transfer(address indexed from, address indexed to, uint256 value);
+event Approval(address indexed owner, address indexed spender, uint256 value);
+
+----------------------------------------------------------------------------------------------------------------------------------------
+
+2.ERC721
+文档地址：https://docs.openzeppelin.com/contracts/5.x/erc721
+github地址：https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.4.0/contracts/token/ERC721/ERC721.sol
+引包接口：import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+引包实现：import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+
+状态变量：
+string private _name;
+string private _symbol;
+mapping(uint256 tokenId => address) private _owners;token对应的所有者地址
+mapping(address owner => uint256) private _balances;地址持有的token数量
+mapping(uint256 tokenId => address) private _tokenApprovals;token对应的授权者地址
+mapping(address owner => mapping(address operator => bool)) private _operatorApprovals;地址是否允许其它地址操作其所有token，全局授权者
+
+函数：
+构造函数：
+constructor(string memory name_, string memory symbol_)；构造函数，指定token名称、简称
+转账相关：
+function transferFrom(address from, address to, uint256 tokenId) public virtual；把token从from转移到to，调用者须为token的持有者、token的授权者、token所有者的全局授权者
+function safeTransferFrom(address from, address to, uint256 tokenId) public；在transferFrom基础上增加校验to地址是否为“支持接收ERC721合约”，个人地址默认接收，合约地址需要实现onERC721Received函数
+function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public virtual；在上一个safeTransferFrom中额外增加data，供onERC721Received函数使用
+授权相关：
+function approve(address to, uint256 tokenId) public virtual；给to授权，调用者只能是该token的所有者或token的所有者的全局授权者
+function setApprovalForAll(address operator, bool approved) public virtual；调用者给operator进行全局授权,approved为true时授权，false时代表取消
+元数据相关：
+function name() public view virtual returns (string memory)；返回token名称
+function symbol() public view virtual returns (string memory)；返回token简称
+function tokenURI(uint256 tokenId) public view virtual returns (string memory)；返回指定token的元数据JSON链接
+额外重要internal函数：
+function _mint(address to, uint256 tokenId) internal；制造token到指定账户
+function _safeMint(address to, uint256 tokenId) internal；_mint基础上校验to地址是否为“支持接收ERC721合约”
+function _burn(uint256 tokenId) internal；从指定账户销毁token
+
+事件：
+event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
+event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
+
+
+
+
+
+
+

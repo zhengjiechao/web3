@@ -1,0 +1,53 @@
+1.DEX
+简介：Decentralized Exchange，去中心化交易所，交易通过智能合约处理，典型代表Uniswap主要进行代币交易，Blur主要进行NFT交易
+优势：安全性保障、利率与手续费自主性、高效与透明性、塑造金融新格局
+
+
+2.Uniswap
+简介：以太坊中最大的去中心化交易所
+版本：2018 年 11 月，V1，支持 ERC-20 和 ETH 的兑换；2020 年 5 月 ，V2，ERC-20 之间的兑换；2021 年 5 月，V3，集中流动性；2025年1月， Hooks 实现了可定制的池，降低gas费
+
+
+3.Uniswap V3构成
+periphery：
+NonfungiblePositionManager.sol，流动性管理合约
+NonfungibleTokenPositionDescriptor.sol：对头寸的描述信息
+SwapRouter.sol：交易路由器
+core：
+UniswapV3Factory.sol：工厂合约，用来创建交易池，设置 Owner 和手续费等级
+UniswapV3PoolDeployer.sol：工厂合约的基类，封装了部署交易池合约的功能
+UniswapV3Pool.sol：交易池合约，持有实际的 Token，实现价格和流动性的管理，以及在当前交易池中 swap 的功能
+
+
+3.Uniswap V3核心函数
+部署交易池：
+调用NonfungiblePositionManager 合约的 createAndInitializePoolIfNecessary(
+    address token0,
+    address token1,
+    uint24 fee,
+    uint160 sqrtPriceX96
+)，fee是以 1,000,000 为基底的手续费费率，支持四种手续费费率（0.01%，0.05%、0.30%、1.00%），推荐0.30%，即为1,000,000*0.30%=3000；
+sqrtPriceX96是当前交易对价格的算术平方根左移 96 位的值，算术平方根使衍生计算公式(x*y=k)更方便，左移96位精度保证；
+slot0()函数，一次性获取池子的状态信息
+
+创建交易池：
+调用的是 UniswapV3Factory 合约的 createPool(
+address token0,
+    address token1,
+    uint24 fee
+)，token0和token1都不能为零地址，ETH的话会使用包装代币如WETH，Wrapped ETH；
+tickSpacing由手续费决定，0.05%对应10，0.30%对应60，1.00%对应200，手续费越高，价格波动越大，价格区间越大
+
+初始化交易池：
+调用的是 UniswapV3Factory 合约的 initialize(uint160 sqrtPriceX96)，
+tick由当前价格计算得出；
+observations.initialize初始化价格观察记录系统；
+tick和tickSpacing的关系，tick是具体的刻度值，tickSpacing是两个tick之间的间隔；
+赋值slot0状态变量
+
+
+
+10.额外扩展
+address类型本质是160位二进制数字，占20字节，40位16进制；address中有大小写字母，表示的同一个值，这样设计的主要目的是EIP-55 规则验证，当输入错误的地址时，大概率不会通过验证，避免错误输入造成损失
+
+

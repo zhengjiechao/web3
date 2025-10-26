@@ -1,0 +1,159 @@
+1.版本
+0.8版本：^~基本相同，主版本、次版本相同，修订版本大于等于，例如：^0.8.20或~0.8.20，区间是0.8.20~0.9.0，前闭后开
+0.8版本之前：^主、次相同，修大于等；~主、次、修相同
+1.0版本之后：^主相同，次、修可升；~主、次相同，修可升
+>=,<=,==和数学概念一致
+
+2.值类型
+整数 int8-int256、uint8-uint256、bool、address（20个字节，16进制表示为40位，二进制表示为160位）、enum、bytes1-bytes32
+注释：使用数字字面量的时候，无符号数字，例如：1编译器会默认识别为uint，若想识别为int，需要显式强转
+注释：bytes1-bytes32表示方式一般为两种，十六进制数字（0x1122），十六进制字符串（hex"1122"），十六进制数字两位表示一个字节
+注释：enum借鉴了go语言的iota，数字从0递增；enum作为合约的一部分，无法在上面使用可见性修饰符，但enum的类型成员是可以使用的
+
+3.引用类型
+bytes、数组、mapping、结构体
+注释：mapping不能使用字面量赋值
+注释：数组的字面量赋值是用[]，mapping定义key value类型是用()，结构体是()；数组取值用[]，mapping取值用[]，结构体取值用.
+
+4.存储位置
+状态变量，默认存storage，引用类型会存两部分，指针和真实的值；
+局部变量，值类型存在栈中，1024个slot，每个slot32个字节；引用类型手动指定storage、memory、calldata(只读，不能在函数内声明，主要用于external函数)，mapping只能存在storage
+
+5.可见修饰符
+public、private、internal、external，不写默认internal
+
+6.读写权限修饰符
+defaulte、view、pure，针对状态的读取、修改
+
+7.payable
+修饰的函数被调用的时候，合约可接收ETH
+
+8.常量修饰符
+constant：编译时初始化，存储在字节码，不支持address
+immutable：部署时构造函数中初始化，存储在代码区，支持address
+
+9.运算
+%取余，**幂，<<左移，>>右移，&按位与（有0取0），|按位或（有1取1），^抑或（相同为0，不同为1）
+0.8版本后，溢出会报错，根据实际情况使用uncheck包裹避免报错
+
+10.数组
+bytesX：字面量赋值支持二进制、字符串，不支持new（默认进行）
+bytes：字面量赋值支持字符串、new，不支持二进制，增加push方法，删除pop方法
+定长数组 uint[10]：指定长度，初始值为类型零值
+动态数组 uint[]：三种声明方式，只声明，默认长度0；字面量；new，new uint256[](10)，小括号指定长度，分配初始长度，类型零值
+注释：
+切片，和go一样，前闭后开；memory修饰的普通动态数组需要指定长度，不能使用push和pop方法，大致还是相当于定长数组；
+使用storage修饰时，才能使用push和pop方法，动态的扩容和减容
+
+11.映射
+只能作为状态变量，无法在函数内声明，无法作为函数入参和返回类型；
+引用类型不能作为key，除了string、bytes，底层通过keccak256哈希函数将其装换为固定长度的hash值；
+无法删除整个mapping，只能通过自带的delete关键字删除指定的键值对；
+不能遍历，世界状态，默克尔树
+
+12.结构体
+可嵌套结构体，mapping可以作为结构体的属性，但要保证结构体是状态变量，因为mapping比较特殊，只能存在storage中
+引申：不能在函数内凭空创造storage，只能取到已经定义的storage的引用
+
+13.全局变量
+block：区块信息
+block.number uint 区块号
+block.timestamp uint 当前区块的时间戳，单位s
+block.coinbase address payable 出块矿工地址
+block.difficulty uint 区块难度
+block.gaslimit uint gas限制
+block.basefee uint 基础交易费
+tx：交易信息
+tx.gasprice uint 交易的gas价格
+tx.origin address 交易的发起者（外部账户地址）-- 注意和msg.sender的区别，msg.sender直接调用者；tx.origin源头调用者-外部账户
+msg：消息信息
+msg.sender address 调起合约的外部账户或者合约地址
+msg.value uint 发送的ETH数量
+msg.data bytes 交易调用时的完整数据
+msg.sig bytes4 函数选择器，等价于bytes4(keccak256(bytes(func)))，其中func为函数名(...)
+环境信息：
+gasleft() uint 当前剩余的gas
+block.chainid uint 当前链的id
+address(this) address 当前合约地址
+address(this).balance uint 当前合约ETH余额
+其他全局变量：
+abi.encode(...) bytes ABI编码
+abi.encodePacked(...)  会压缩，不适合需解码的场景
+abi.encodeWithSignature("方法(参数类型)",参数) bytes 生成函数选择器动态字节数组
+abi.decode(...) T ABI解码
+keccak256(...) bytes32 计算keccak256哈希值
+sha256(...) bytes32 计算sha256哈希值
+ripemd160(...) bytes20 计算ripemd160哈希值
+ecrecover(bytes32 hash,uint8 v,bytes32 r,bytes32 s) address 从签名中恢复公钥。过程：真实数据，真实数据产生的hash，使用钱包地址的私钥对hash进行加签得到r v s三个值，验签时校验真实数据的hash值是否相等，再验证数据是否为目标地址所发
+addmod(x,y,m) uint 计算(x+y)%m，避免溢出
+mulmod(x,y,m) uint 计算(x*y)%m，避免溢出
+
+14.错误处理（error message统统不能使用中文）
+require(条件,"error message")；适用于验证输入、权限、调用状态
+assert(条件);
+revert("error message")；配合自定义错误使用，达到节省gas的目的。自定义错误为error，返回时会显示自定义错误名，按一定格式打印出参数
+
+15.错误类型
+error：require和revert抛出的错误，业务逻辑错误
+panic：assert抛出的错误，系统错误
+默认的catch块：原始错误数据（bytes 类型）
+
+16.自定义修饰符modifier
+常用于权限控制或状态检查，代码复用，_；代表执行函数体，可携带参数，放在returns前
+
+17.接口
+接口只能声明函数，不能实现函数。
+接口中的函数必须标记为 external。
+接口不能定义状态变量或构造函数。
+接口可以继承其他接口。
+
+18.导包
+导本地：import "./MyContract.sol";
+导远程文件：import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/ERC20.sol";
+导整个目录：import "./utils/*";
+导入并重命名：import { MyContract as MC } from "./MyContract.sol";
+
+19.继承
+父合约函数可使用virtual修饰，子合约继承使用override，modifier也要跟上
+注意：父类不使用virtual关键字，子类使用同名同参数函数表示函数隐藏，需要用new关键字修饰（可能出现版本不支持，编译不通过的情况），并且没有多态效果，例如将子类强转为父类，调用的是父类的方法
+
+20.receive()函数
+用途：当合约收到纯ETH转账，如transfer()、send()、call("")函数、钱包直接向合约转账时触发
+语法：receive() external payable{其他逻辑} 
+特点：只能被外部调用；可收款；无参无返回；只有一个
+使用场景：记日志；验证转账的时间、账户等信息；其它内部逻辑，如转账即可兑换积分等
+
+21.fallback()函数
+用途：错误的函数签名，接收纯ETH但无receive()可用（作receive()的替补）
+注意：payable是可选项，当遇到转账操作但无payable修饰时会直接回滚，不会进入到方法体
+
+22.三种收款方式
+payable(msg.sender).transfer(1 ether);失败直接revert
+bool success = payable(msg.sender).send(1 ether);需手动判断转账结果
+(bool success, ) = payable(msg.sender).call{value: 1 ether}("");有转账结果，有返回值，操作灵活
+注意：单位为ether、gwei、wei，单位前只能跟字面量，如果需要使用变量，可用变量 * 1 ether这种形式
+
+23.event
+定义方式：event 事件名(参数类型 参数名);
+indexed可选，代表可使用指定字段进行筛选，最多3个
+触发：emit 参数名(参数);
+
+
+警示：
+1.做减法时一定要考虑是否会减成负数导致报错
+2.程序报错gas不足多半都是代码有问题
+3.变量警告查看是否和父合约有冲突
+4.给零地址转账出现奇怪异常
+
+
+
+
+
+
+
+
+
+
+
+
+
